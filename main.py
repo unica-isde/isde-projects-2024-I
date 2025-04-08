@@ -1,12 +1,24 @@
 import json
+from io import BytesIO
+import base64
+import os
+import matplotlib.pyplot as plt
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi import BackgroundTasks
+from fastapi.responses import FileResponse
 from app.config import Configuration
 from app.forms.classification_form import ClassificationForm
+from app.forms.histogram_form import HistogramForm
 from app.ml.classification_utils import classify_image
-from app.utils import list_images
+from app.utils import list_images,generate_histogram,get_image_path
+from app.utils import add_image_to_list
+import tempfile
+
+import matplotlib
+matplotlib.use("agg")
 
 
 app = FastAPI()
@@ -14,6 +26,49 @@ config = Configuration()
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+
+# Histogram Creation
+
+@app.get("/histogram", response_class=HTMLResponse)
+def create_histogram(request: Request):
+    """Creates the page for the histogram form.
+
+    Args:
+        request (Request): request issued from base.html
+
+    Returns:
+        (TemplateResponse): TemplateResponse with histogram_select.html
+    """
+    return templates.TemplateResponse(
+        "histogram_select.html",
+        {"request": request, "images": list_images()}
+    )
+
+
+@app.post("/histogram")
+async def request_histogram(request: Request):
+    """Processes the form submission and returns the histogram image.
+
+    Args:
+        request (Request): issued from histogram_select.html
+
+    Returns:
+        (Template_Response): TemplateResponse with histogram_output.html to display the histogram
+    """
+    form = HistogramForm(request)
+    await form.load_data()
+    error = form.errors
+
+    if not form.is_valid():
+        return templates.TemplateResponse("histogram_select.html", {"request": request, "errors": error})
+
+    image_path = get_image_path(form.image_id)
+    histogram_data = generate_histogram(image_path)
+
+    return templates.TemplateResponse(
+        "histogram_output.html",
+        {"request": request, "image_id": form.image_id, "histogram_data": histogram_data}
+    )
 
 
 @app.get("/info")

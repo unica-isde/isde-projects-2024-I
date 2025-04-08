@@ -16,8 +16,10 @@ from app.ml.classification_utils import classify_image
 from app.utils import list_images,generate_histogram,get_image_path
 from app.utils import add_image_to_list
 import tempfile
+from fastapi import Request, UploadFile
 from app.forms.transformation_form import TransformationForm
 from app.ml.transformation_utils import transform_image
+from app.forms.upload_form import UploadForm
 import matplotlib
 matplotlib.use("agg")
 
@@ -252,3 +254,57 @@ def download_plot(request: Request, background_tasks: BackgroundTasks):
     )
 
 #Download Result Ended____
+
+#Image Upload Started_______
+@app.get("/upload-image")
+def create_upload_image(request: Request):
+    """Display the form to upload an image.
+
+    Args:
+        request (Request): issued from base.html
+
+    Returns:
+        (TemplateResponse): TemplateResponse with upload_image_select.html
+    """
+    return templates.TemplateResponse(
+        "upload_image_select.html",
+        {"request": request, "models": Configuration.models},
+    )
+
+@app.post("/upload-image")
+async def request_upload_image(request: Request):
+    """Upload an image, store it and classify it using the selected model.
+
+    Args:
+        request (Request): issued from upload_image_select.html
+
+    Returns:
+        (TemplateResponse): TemplateResponse with classification_output.html showing the classification results
+    """
+    form = UploadForm(request)
+    await form.load_data()
+    model_id = form.model_id
+    image = form.image
+    image_id = str(image.filename)
+    error = form.errors
+
+    if not form.is_valid():
+        return templates.TemplateResponse(
+            "upload_image_select.html",
+            {"request": request, "models": Configuration.models, "errors": error},
+        )
+
+    retVal = await add_image_to_list(image, image_id)
+    if retVal == False:
+        return templates.TemplateResponse(
+            "upload_image_select.html",
+            {"request": request, "models": Configuration.models, "errors": "Invalid file format"},
+        )
+
+    classification_scores = classify_image(model_id=model_id, img_id=image_id)
+    return templates.TemplateResponse(
+        "classification_output.html",
+        {"request": request, "image_id": image_id, "classification_scores": json.dumps(classification_scores)},
+    )
+
+#Image Upload Ended______

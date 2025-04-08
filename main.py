@@ -180,4 +180,75 @@ async def request_transformation(request: Request):
 
 #Image Transformation Ended______________
 
+#Download Result Started_____
 
+@app.get("/download-result")
+def download_result(request: Request, background_tasks: BackgroundTasks):
+    """Download the classification result as a JSON file.
+
+    Args:
+        request (Request): issued from classification_output.html
+        background_tasks (BackgroundTasks): handle to remove the temporary file after download
+
+    Returns:
+        (FileResponse): FileResponse with the classification result as a JSON file
+    """
+    result_file_path = "app/static/result.json"
+
+    classification_scores = request.query_params.get("scores")
+    classification_scores = json.loads(classification_scores)
+
+    with tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".json") as temp_file:
+        temp_file_path = temp_file.name
+        json.dump(classification_scores, temp_file)
+
+    background_tasks.add_task(os.remove, temp_file_path)
+
+    return FileResponse(
+        temp_file_path,
+        filename="classification_result.json",
+        media_type="application/json",
+        headers={"Content-Disposition": 'attachment; filename="classification_result.json"'}
+    )
+
+
+@app.get("/download-plot")
+def download_plot(request: Request, background_tasks: BackgroundTasks):
+    """Download the classification scores as a bar plot.
+
+    Args:
+        request (Request): issued from classification_output.html
+        background_tasks (BackgroundTasks): handle to remove the temporary file after download
+
+    Returns:
+        (TemplateResponse): FileResponse with the classification scores as a bar plot as png-image
+    """
+    result_file_path = "app/static/plot.png"
+
+    classification_scores = json.loads(request.query_params.get("scores"))
+
+    top_5_scores = sorted(classification_scores, key=lambda x: x[1], reverse=True)[:5]
+    models = [score[0] for score in top_5_scores]
+    scores = [score[1] for score in top_5_scores]
+
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.png') as temp_file:
+        result_file_path = temp_file.name
+        plt.bar(models, scores, color="blue")
+        plt.xlabel("Model")
+        plt.ylabel("Score")
+        plt.title("Top 5 Classification Scores")
+        plt.xticks(rotation=45, ha='right')
+        plt.subplots_adjust(bottom=0.5)
+        plt.savefig(result_file_path)
+        plt.close()
+
+    background_tasks.add_task(os.remove, result_file_path)
+
+    return FileResponse(
+        result_file_path,
+        filename="classification_result.png",
+        media_type="image/png",
+        headers={"Content-Disposition": 'attachment; filename="classification_result.png"'}
+    )
+
+#Download Result Ended____

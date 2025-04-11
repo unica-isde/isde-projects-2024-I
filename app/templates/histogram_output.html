@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2 class="text-center">Image & Histogram</h2>
+    <div class="row">
+        <div class="col-md-6 text-center">
+            <h4>Image</h4>
+            <img src="{{ url_for('static', path='imagenet_subset/' + image_id) }}" class="img-fluid" alt="Selected Image">
+        </div>
+        <div class="col-md-6 text-center">
+            <h4>Histogram</h4>
+            <img src="data:image/png;base64,{{ histogram_data }}" class="img-fluid" alt="Histogram">
+        </div>
+        <a href="/histogram" class="btn btn-primary mt-3">Select New Image</a>
+    </div>
+</div>
+{% endblock %}

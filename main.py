@@ -62,18 +62,20 @@ async def request_classification(request: Request):
     )
 
 @app.get("/histogram", response_class=HTMLResponse)
-def create_histogram(request: Request):
+def show_histogram_form(request: Request):
     return templates.TemplateResponse(
         "histogram_select.html", {"request": request, "images": list_images()}
     )
 
 
-@app.post("/histogram")
-async def request_histogram(request: Request):
+@app.post("/histogram", response_class=HTMLResponse)
+async def generate_histogram_output(request: Request):
     form = HistogramForm(request)
     await form.load_data()
     if not form.is_valid():
-        return templates.TemplateResponse("histogram_select.html", {"request": request, "errors": form.errors})
+        return templates.TemplateResponse(
+            "histogram_select.html", {"request": request, "images": list_images(), "errors": form.errors}
+        )
 
     image_path = get_image_path(form.image_id)
     histogram_data = generate_histogram(image_path)

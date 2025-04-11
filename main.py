@@ -7,6 +7,11 @@ from app.config import Configuration
 from app.forms.classification_form import ClassificationForm
 from app.ml.classification_utils import classify_image
 from app.utils import list_images
+from fastapi import Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from app.forms.histogram_form import HistogramForm
+from app.utils import list_images, get_image_path, generate_histogram
 
 
 app = FastAPI()
@@ -55,3 +60,4 @@ async def request_classification(request: Request):
             "classification_scores": json.dumps(classification_scores),
         },
     )
+

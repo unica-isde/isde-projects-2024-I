@@ -13,6 +13,15 @@ from fastapi.templating import Jinja2Templates
 from app.forms.histogram_form import HistogramForm
 from app.utils import list_images, get_image_path, generate_histogram
 from app.forms.histogram_form import HistogramForm
+from fastapi import Request
+from io import BytesIO
+import base64
+from app.forms.transformation_form import ImageTransformForm
+from app.ml.transformation_utils import apply_transformations
+
+
+
+
 
 app = FastAPI()
 config = Configuration()
@@ -51,7 +60,7 @@ async def request_classification(request: Request):
     await form.load_data()
     image_id = form.image_id
     model_id = form.model_id
-    classification_scores = classify_image(model_id=model_id, img_id=image_id)
+    classification_scores = classify_image(model_id=model_id, img_id = form.img_id)
     return templates.TemplateResponse(
         "classification_output.html",
         {
@@ -84,3 +93,45 @@ async def generate_histogram_output(request: Request):
         "histogram_output.html",
         {"request": request, "image_id": form.image_id, "histogram_data": histogram_data}
     )
+
+
+@app.get("/image-transformation", response_class=HTMLResponse)
+def show_transformation_form(request: Request):
+    return templates.TemplateResponse(
+        "image_transformation_select.html",
+        {"request": request, "images": list_images()},
+    )
+
+@app.post("/image-transformation", response_class=HTMLResponse)
+async def apply_image_transformation(request: Request):
+    form = ImageTransformForm(request)
+    await form.load_data()
+
+    if not form.is_valid():
+        return templates.TemplateResponse(
+            "image_transformation_select.html",
+            {"request": request, "images": list_images(), "errors": form.errors},
+        )
+
+    transformed_image = apply_transformations(
+        img_id = form.img_id,
+        color_factor = form.color_factor,
+        brightness_level = form.brightness_level,
+        contrast_level = form.contrast_level,
+        sharpness_level = form.sharpness_level,
+    )
+
+    buffer = BytesIO()
+    transformed_image.save(buffer, format="PNG")
+    img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+    buffer.close()
+
+    return templates.TemplateResponse(
+        "image_transformation_output.html",
+        {
+            "request": request,
+            "image_id": form.img_id,
+            "transformed_image_url": f"data:image/png;base64,{img_base64}",
+        },
+    )
+

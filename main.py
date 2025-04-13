@@ -102,6 +102,47 @@ async def generate_histogram_output(request: Request):
         {"request": request, "image_id": form.image_id, "histogram_data": histogram_data}
     )
 
+@app.get("/image-transformation", response_class=HTMLResponse)
+def show_transformation_form(request: Request):
+    return templates.TemplateResponse(
+        "image_transformation_select.html",
+        {"request": request, "images": list_images()},
+    )
+
+@app.post("/image-transformation", response_class=HTMLResponse)
+async def apply_image_transformation(request: Request):
+    form = ImageTransformForm(request)
+    await form.load_data()
+
+    if not form.is_valid():
+        return templates.TemplateResponse(
+            "image_transformation_select.html",
+            {"request": request, "images": list_images(), "errors": form.errors},
+        )
+
+    transformed_image = apply_transformations(
+        img_id = form.img_id,
+        color_factor = form.color_factor,
+        brightness_level = form.brightness_level,
+        contrast_level = form.contrast_level,
+        sharpness_level = form.sharpness_level,
+    )
+
+    buffer = BytesIO()
+    transformed_image.save(buffer, format="PNG")
+    img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+    buffer.close()
+
+    return templates.TemplateResponse(
+        "image_transformation_output.html",
+        {
+            "request": request,
+            "image_id": form.img_id,
+            "transformed_image_url": f"data:image/png;base64,{img_base64}",
+        },
+    )
+
+
 @app.get("/download-result")
 def export_result_file(request: Request, background_tasks: BackgroundTasks):
     data = request.query_params.get("scores")

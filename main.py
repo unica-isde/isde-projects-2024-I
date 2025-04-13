@@ -17,7 +17,6 @@ from app.config import Configuration
 from app.utils import list_images, get_image_path, generate_histogram, add_image_to_list
 from app.forms.classification_form import ClassificationForm
 from app.forms.histogram_form import HistogramForm
-from app.forms.upload_form import UploadForm
 from app.forms.transformation_form import ImageTransformForm
 from app.forms.upload_form import ImageUploadForm
 from app.ml.classification_utils import classify_image

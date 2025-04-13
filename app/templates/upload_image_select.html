@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container mt-4">
+        <h2>Upload a New Image</h2>
+        <form method="post" enctype="multipart/form-data" novalidate>
+            <div class="form-group mt-3">
+                <label for="model_id"><strong>Select a Model:</strong></label>
+                <select id="model_id" name="model_id" class="form-control">
+                    {% for model in models %}
+                        <option value="{{ model }}">{{ model }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group mt-4">
+                <label for="uploaded_image"><strong>Choose an Image:</strong></label><br>
+                <input type="file" id="uploaded_image" name="uploaded_image" accept="image/*" hidden>
+                <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('uploaded_image').click();">
+                    Browse Files
+                </button>
+            </div>
+
+            <div class="form-group mt-4">
+                <button type="submit" class="btn btn-primary">Upload and Submit</button>
+            </div>
+        </form>
+    </div>
+{% endblock %}

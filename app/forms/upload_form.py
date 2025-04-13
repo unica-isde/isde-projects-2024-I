@@ -16,7 +16,8 @@ class ImageUploadForm:
         if not self.selected_model or not isinstance(self.selected_model, str):
             self.upload_errors.append("Model ID must be a valid string.")
 
-        if not self.input_image or not self.input_image.filename.lower().endswith(".jpeg"):
-            self.upload_errors.append("Please upload a valid .jpeg image.")
+        # Use a tuple for checking multiple file extensions
+        if not self.input_image or not self.input_image.filename.lower().endswith((".jpeg", ".jpg", ".png")):
+            self.upload_errors.append("Please upload a valid .jpeg, .jpg, or .png image.")
 
         return not self.upload_errors

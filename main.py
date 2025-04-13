@@ -1,13 +1,12 @@
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request, BackgroundTasks
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from app.config import Configuration
 from app.forms.classification_form import ClassificationForm
+from app.forms.upload_form import ImageUploadForm
 from app.ml.classification_utils import classify_image
-from app.utils import list_images
-from fastapi import BackgroundTasks, Request
-from fastapi.responses import FileResponse
-from fastapi import FastAPI, Request
+from app.utils import list_images, add_image_to_list
 import tempfile
 import json
 import os
@@ -112,4 +111,44 @@ def export_plot_image(request: Request, background_tasks: BackgroundTasks):
         media_type="image/png",
         filename="classification_result.png",
         headers={"Content-Disposition": 'attachment; filename="classification_result.png"'}
+    )
+
+@app.get("/upload-image")
+def create_upload_image(request: Request):
+    return templates.TemplateResponse(
+        "upload_image_select.html",
+        {"request": request, "models": Configuration.models},
+    )
+
+@app.post("/upload-image")
+async def request_upload_image(request: Request):
+    form = ImageUploadForm(request)
+    await form.load_data()
+
+    model_id = form.selected_model
+    image = form.input_image
+    image_id = str(image.filename)
+    error = form.upload_errors
+
+    if not form.is_valid():
+        return templates.TemplateResponse(
+            "upload_image_select.html",
+            {"request": request, "models": Configuration.models, "errors": error},
+        )
+
+    retVal = await add_image_to_list(image, image_id)
+    if retVal == False:
+        return templates.TemplateResponse(
+            "upload_image_select.html",
+            {"request": request, "models": Configuration.models, "errors": ["Invalid file format"]},
+        )
+
+    classification_scores = classify_image(model_id=model_id, img_id=image_id)
+    return templates.TemplateResponse(
+        "classification_output.html",
+        {
+            "request": request,
+            "image_id": image_id,
+            "classification_scores": json.dumps(classification_scores),
+        },
     )

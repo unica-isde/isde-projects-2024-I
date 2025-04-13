@@ -1,8 +1,9 @@
 import os
 import json
 import tempfile
+import base64
+from io import BytesIO
 import matplotlib.pyplot as plt
-
 import matplotlib
 matplotlib.use("agg")
 
@@ -16,7 +17,9 @@ from app.utils import list_images, get_image_path, generate_histogram, add_image
 from app.forms.classification_form import ClassificationForm
 from app.forms.histogram_form import HistogramForm
 from app.forms.upload_form import UploadForm
+from app.forms.transformation_form import ImageTransformForm
 from app.ml.classification_utils import classify_image
+from app.ml.transformation_utils import apply_transformations
 
 app = FastAPI()
 config = Configuration()
@@ -65,55 +68,6 @@ async def request_classification(request: Request):
         },
     )
 
-@app.get("/download-result")
-def export_result_file(request: Request, background_tasks: BackgroundTasks):
-    data = request.query_params.get("scores")
-    parsed_scores = json.loads(data)
-
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp_json:
-        json.dump(parsed_scores, tmp_json)
-        temp_path = tmp_json.name
-
-    background_tasks.add_task(os.remove, temp_path)
-
-    return FileResponse(
-        temp_path,
-        media_type="application/json",
-        filename="classification_result.json",
-        headers={"Content-Disposition": 'attachment; filename="classification_result.json"'}
-    )
-
-
-@app.get("/download-plot")
-def export_plot_image(request: Request, background_tasks: BackgroundTasks):
-    scores_raw = request.query_params.get("scores")
-    parsed_scores = json.loads(scores_raw)
-
-    top_5 = sorted(parsed_scores, key=lambda x: x[1], reverse=True)[:5]
-    labels = [item[0] for item in top_5]
-    values = [item[1] for item in top_5]
-
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".png", delete=False) as tmp_plot:
-        plt.bar(labels, values, color="steelblue")
-        plt.xlabel("Label")
-        plt.ylabel("Score")
-        plt.title("Top 5 Predictions")
-        plt.xticks(rotation=45, ha="right")
-        plt.tight_layout()
-        plt.savefig(tmp_plot.name)
-        plt.close()
-        temp_path = tmp_plot.name
-
-    background_tasks.add_task(os.remove, temp_path)
-
-    return FileResponse(
-        temp_path,
-        media_type="image/png",
-        filename="classification_result.png",
-        headers={"Content-Disposition": 'attachment; filename="classification_result.png"'}
-    )
-
-
 @app.get("/histogram", response_class=HTMLResponse)
 def show_histogram_form(request: Request):
     return templates.TemplateResponse(
@@ -137,3 +91,45 @@ async def generate_histogram_output(request: Request):
         "histogram_output.html",
         {"request": request, "image_id": form.image_id, "histogram_data": histogram_data}
     )
+
+
+@app.get("/image-transformation", response_class=HTMLResponse)
+def show_transformation_form(request: Request):
+    return templates.TemplateResponse(
+        "image_transformation_select.html",
+        {"request": request, "images": list_images()},
+    )
+
+@app.post("/image-transformation", response_class=HTMLResponse)
+async def apply_image_transformation(request: Request):
+    form = ImageTransformForm(request)
+    await form.load_data()
+
+    if not form.is_valid():
+        return templates.TemplateResponse(
+            "image_transformation_select.html",
+            {"request": request, "images": list_images(), "errors": form.errors},
+        )
+
+    transformed_image = apply_transformations(
+        img_id = form.img_id,
+        color_factor = form.color_factor,
+        brightness_level = form.brightness_level,
+        contrast_level = form.contrast_level,
+        sharpness_level = form.sharpness_level,
+    )
+
+    buffer = BytesIO()
+    transformed_image.save(buffer, format="PNG")
+    img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+    buffer.close()
+
+    return templates.TemplateResponse(
+        "image_transformation_output.html",
+        {
+            "request": request,
+            "image_id": form.img_id,
+            "transformed_image_url": f"data:image/png;base64,{img_base64}",
+        },
+    )
+

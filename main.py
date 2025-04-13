@@ -1,5 +1,3 @@
-import json
-from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -7,6 +5,17 @@ from app.config import Configuration
 from app.forms.classification_form import ClassificationForm
 from app.ml.classification_utils import classify_image
 from app.utils import list_images
+from fastapi import BackgroundTasks, Request
+from fastapi.responses import FileResponse
+from fastapi import FastAPI, Request
+import tempfile
+import json
+import os
+import matplotlib.pyplot as plt
+
+
+import matplotlib
+matplotlib.use("agg")
 
 
 app = FastAPI()
@@ -54,4 +63,53 @@ async def request_classification(request: Request):
             "image_id": image_id,
             "classification_scores": json.dumps(classification_scores),
         },
+    )
+
+
+@app.get("/download-result")
+def export_result_file(request: Request, background_tasks: BackgroundTasks):
+    data = request.query_params.get("scores")
+    parsed_scores = json.loads(data)
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp_json:
+        json.dump(parsed_scores, tmp_json)
+        temp_path = tmp_json.name
+
+    background_tasks.add_task(os.remove, temp_path)
+
+    return FileResponse(
+        temp_path,
+        media_type="application/json",
+        filename="classification_result.json",
+        headers={"Content-Disposition": 'attachment; filename="classification_result.json"'}
+    )
+
+
+@app.get("/download-plot")
+def export_plot_image(request: Request, background_tasks: BackgroundTasks):
+    scores_raw = request.query_params.get("scores")
+    parsed_scores = json.loads(scores_raw)
+
+    top_5 = sorted(parsed_scores, key=lambda x: x[1], reverse=True)[:5]
+    labels = [item[0] for item in top_5]
+    values = [item[1] for item in top_5]
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".png", delete=False) as tmp_plot:
+        plt.bar(labels, values, color="steelblue")
+        plt.xlabel("Label")
+        plt.ylabel("Score")
+        plt.title("Top 5 Predictions")
+        plt.xticks(rotation=45, ha="right")
+        plt.tight_layout()
+        plt.savefig(tmp_plot.name)
+        plt.close()
+        temp_path = tmp_plot.name
+
+    background_tasks.add_task(os.remove, temp_path)
+
+    return FileResponse(
+        temp_path,
+        media_type="image/png",
+        filename="classification_result.png",
+        headers={"Content-Disposition": 'attachment; filename="classification_result.png"'}
     )
